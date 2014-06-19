@@ -27,13 +27,17 @@
     End Sub
 
     Private Sub cmboInstrumentType_SelectedIndexChanged(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmboInstrumentType.SelectedIndexChanged
-        activeProfile.instrumentType = CType(cmboInstrumentType.SelectedValue, BTILHCRunner.ClassLHCRunner.enumProductType)
-        btnUpdateProfile.Enabled = True
+        If activeProfile IsNot Nothing Then
+            activeProfile.instrumentType = CType(cmboInstrumentType.SelectedValue, BTILHCRunner.ClassLHCRunner.enumProductType)
+            btnUpdateProfile.Enabled = True
+        End If
     End Sub
 
     Private Sub cmboPort_SelectedIndexChanged(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmboPort.SelectedIndexChanged
-        activeProfile.commPort = cmboPort.SelectedItem
-        btnUpdateProfile.Enabled = True
+        If activeProfile IsNot Nothing Then
+            activeProfile.commPort = cmboPort.SelectedItem
+            btnUpdateProfile.Enabled = True
+        End If
     End Sub
 
     Private Sub btnNewProfile_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnNewProfile.Click

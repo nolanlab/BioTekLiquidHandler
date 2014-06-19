@@ -3,8 +3,11 @@ Imports System.Windows.Forms
 
 Public Class BioTekVWorksPluginDriver
     Implements IWorksDriver.IWorksDriver
+    Implements IWorksDriver.IWorksDiags
+    Implements IWorksDriver.IControllerClient
 
     Dim lhcRunner As BTILHCRunner.ClassLHCRunner = New BTILHCRunner.ClassLHCRunner
+    Dim controllerInstance As IWorksDriver.CWorksController
 
     Dim errorString As String
 
@@ -38,6 +41,9 @@ Public Class BioTekVWorksPluginDriver
     Public Function Command(ByVal CommandXML As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Command
         'TODO tie to a profile?
         Debug.Print(CommandXML)
+        MsgBox(CommandXML)
+        Return IWorksDriver.ReturnCode.RETURN_SUCCESS
+
     End Function
 
     Public Function Compile(ByVal iCompileType As IWorksDriver.CompileType, ByVal MetaDataXML As String) As String Implements IWorksDriver.IWorksDriver.Compile
@@ -57,7 +63,7 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Function GetDescription(ByVal CommandXML As String, ByVal Verbose As Boolean) As String Implements IWorksDriver.IWorksDriver.GetDescription
-
+        Return ""
     End Function
 
     Public Function GetErrorInfo() As String Implements IWorksDriver.IWorksDriver.GetErrorInfo
@@ -100,10 +106,12 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Function Ignore(ByVal ErrorContext As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Ignore
+        Return IWorksDriver.ReturnCode.RETURN_SUCCESS
 
     End Function
 
     Public Function Initialize(ByVal CommandXML As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Initialize
+        MsgBox(CommandXML)
         Debug.Print(CommandXML)
         Dim returnValue As Runner_ReturnCode
 
@@ -153,7 +161,26 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Function Retry(ByVal ErrorContext As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Retry
+        'TODO
+        Return IWorksDriver.ReturnCode.RETURN_SUCCESS
+    End Function
 
+    Private Sub DiagsForm_FormClosed(ByVal sender As Object, ByVal e As FormClosedEventArgs) Handles frmDiags.FormClosed
+        'What is the argument Source supposed to be?
+        controllerInstance.OnCloseDiagsDialog(Me)
+        'Source As IWorksController.CControllerClient
+        'HRESULT OnCloseDiagsDialog(
+        '[in](IControllerClient * Source)
+        ');
+    End Sub
+
+    Public Function CloseDiagsDialog() As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDiags.CloseDiagsDialog
+        frmDiags.Hide()
+        Return IWorksDriver.ReturnCode.RETURN_SUCCESS
+    End Function
+
+    Public Function IsDiagsDialogOpen() As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDiags.IsDiagsDialogOpen
+        Return frmDiags.Visible
     End Function
 
     Public Sub ShowDiagsDialog(ByVal iSecurity As IWorksDriver.SecurityLevel) Implements IWorksDriver.IWorksDriver.ShowDiagsDialog
@@ -161,8 +188,12 @@ Public Class BioTekVWorksPluginDriver
         frmDiags.Show()
     End Sub
 
-    Private Sub DiagsForm_FormClosed(ByVal sender As Object, ByVal e As FormClosedEventArgs) Handles frmDiags.FormClosed
-        'TODO how??
-        'IWorksDriver.IWorksController.OnCloseDiagsDialog()
+    Public Sub ShowDiagsDialog(ByVal iSecurity As IWorksDriver.SecurityLevel, ByVal bModal As Boolean) Implements IWorksDriver.IWorksDiags.ShowDiagsDialog
+        frmDiags = New Diags
+        frmDiags.Show()
+    End Sub
+
+    Public Sub SetController(ByVal Controller As IWorksDriver.CWorksController) Implements IWorksDriver.IControllerClient.SetController
+        controllerInstance = Controller
     End Sub
 End Class
