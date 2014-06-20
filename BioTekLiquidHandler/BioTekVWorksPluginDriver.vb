@@ -2,9 +2,9 @@
 Imports System.Windows.Forms
 
 Public Class BioTekVWorksPluginDriver
+    Inherits IWorksDriver.CControllerClientClass
     Implements IWorksDriver.IWorksDriver
     Implements IWorksDriver.IWorksDiags
-    Implements IWorksDriver.IControllerClient
 
     Dim lhcRunner As BTILHCRunner.ClassLHCRunner = New BTILHCRunner.ClassLHCRunner
     Dim controllerInstance As IWorksDriver.CWorksController
@@ -24,6 +24,21 @@ Public Class BioTekVWorksPluginDriver
         ePre_Run_Error = 6
     End Enum
 
+    ' This should be defined by BTILHCRunner but does not appear to be.
+    Enum RunStatus
+        eUninitialized = 0
+        eReady = 1
+        eNotReady = 2
+        eBusy = 3
+        eError = 4
+        eDone = 5
+        eIncomplete = 6
+        ePaused = 7
+        eStopRequested = 8
+        eStopping = 9
+        eNotRequired = 10
+    End Enum
+
     'TODO base on a profile
     Dim commPort As String = "COM22"
     Dim productType As BTILHCRunner.ClassLHCRunner.enumProductType = BTILHCRunner.ClassLHCRunner.enumProductType.eMultiFloFX
@@ -39,11 +54,50 @@ Public Class BioTekVWorksPluginDriver
     End Sub
 
     Public Function Command(ByVal CommandXML As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Command
-        'TODO tie to a profile?
-        Debug.Print(CommandXML)
-        MsgBox(CommandXML)
-        Return IWorksDriver.ReturnCode.RETURN_SUCCESS
+        '<?xml version='1.0' encoding='ASCII' ?>
+        '<Velocity11 file='MetaData' md5sum='f4b2ddb342a1f5600f94f3ab51bd791c' version='1.0' >
+        '	<Command Compiler='17' Description='Runs a program' Editor='16' Name='Run LHC Program' NextTaskToExecute='1' RequiresRefresh='0' TaskRequiresLocation='1' VisibleAvailability='1' >
+        '		<Parameters >
+        '			<Parameter Description='Name of LHC program' Name='Program name' Scriptable='1' Style='0' Type='9' Value='bdas' />
+        '		</Parameters>
+        '	</Command>
+        '</Velocity11>
 
+        Dim programPath As String = ""
+
+        Dim xcommand As XDocument = XDocument.Parse(CommandXML)
+        For Each parameter As XElement In xcommand...<Parameter>
+            If parameter.@Name = "Program name" Then
+                programPath = parameter.@Value
+            End If
+        Next
+
+        If programPath = "" Then
+            Return IWorksDriver.ReturnCode.RETURN_FAIL
+        End If
+
+        'Verify file exists
+        If System.IO.File.Exists(programPath) <> True Then
+            Return IWorksDriver.ReturnCode.RETURN_FAIL
+        End If
+
+        lhcRunner.LHC_RunProtocol()
+        While True
+            Select Case lhcRunner.LHC_GetProtocolStatus()
+                Case RunStatus.eBusy, RunStatus.eIncomplete
+                    Threading.Thread.Sleep(1000)
+                Case RunStatus.eDone, RunStatus.eReady
+                    Return IWorksDriver.ReturnCode.RETURN_SUCCESS
+                Case RunStatus.eError, RunStatus.eUninitialized
+                    Return IWorksDriver.ReturnCode.RETURN_FAIL
+                Case Else
+                    MsgBox("Unhandled status: " + lhcRunner.LHC_GetProtocolStatus())
+            End Select
+        End While
+
+        lhcRunner.LHC_LoadProtocolFromFile(programPath)
+
+        Return IWorksDriver.ReturnCode.RETURN_SUCCESS
     End Function
 
     Public Function Compile(ByVal iCompileType As IWorksDriver.CompileType, ByVal MetaDataXML As String) As String Implements IWorksDriver.IWorksDriver.Compile
@@ -76,13 +130,21 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Function GetMetaData(ByVal iDataType As IWorksDriver.MetaDataType, ByVal current_metadata As String) As String Implements IWorksDriver.IWorksDriver.GetMetaData
+        Dim profilesNames As String() = Profile.GetProfiles()
+
         Dim metadata As XDocument =
             <?xml version='1.0' encoding='ASCII'?>
             <Velocity11 file='MetaData' version='1.0'>
                 <MetaData>
                     <Device Description='BioTek Liquid Handler' DynamicLocations='0' MiscAttributes='0' HasBarcodeReader='0' HardwareManufacturer='BioTek Instruments' Name='BioTek Liquid Handler' PreferredTab='Liquid Handling' RegistryName='BioTekLHC\Profiles'>
                         <Parameters>
-                            <Parameter Name='Profile' Style='0' Type='2'/>
+                            <Parameter Name='Profile' Style='0' Type='2'>
+                                <Ranges>
+                                    <%= From pn In profilesNames
+                                        Select <Range Value=<%= pn %>/>
+                                    %>
+                                </Ranges>
+                            </Parameter>
                         </Parameters>
                         <Locations>
                             <Location Name='Stage' Type='1'/>
@@ -107,7 +169,6 @@ Public Class BioTekVWorksPluginDriver
 
     Public Function Ignore(ByVal ErrorContext As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Ignore
         Return IWorksDriver.ReturnCode.RETURN_SUCCESS
-
     End Function
 
     Public Function Initialize(ByVal CommandXML As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Initialize
@@ -166,12 +227,7 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Private Sub DiagsForm_FormClosed(ByVal sender As Object, ByVal e As FormClosedEventArgs) Handles frmDiags.FormClosed
-        'What is the argument Source supposed to be?
         controllerInstance.OnCloseDiagsDialog(Me)
-        'Source As IWorksController.CControllerClient
-        'HRESULT OnCloseDiagsDialog(
-        '[in](IControllerClient * Source)
-        ');
     End Sub
 
     Public Function CloseDiagsDialog() As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDiags.CloseDiagsDialog
@@ -193,7 +249,7 @@ Public Class BioTekVWorksPluginDriver
         frmDiags.Show()
     End Sub
 
-    Public Sub SetController(ByVal Controller As IWorksDriver.CWorksController) Implements IWorksDriver.IControllerClient.SetController
+    Public Overrides Sub SetController(ByVal Controller As IWorksDriver.CWorksController)
         controllerInstance = Controller
     End Sub
 End Class
