@@ -11,7 +11,7 @@ Installation
 ------------
 Copy the following files to the VWorks Plugin directory:
 
-* BioTekLiquidHandler.dll
-* BioTekLiquidHandler.tlb
-* LHC_Installation_Folder.inf (from the Liquid Handling Control installation directory)
-* BTILHCRunner.dll (from the Liquid Handling Control installation directory or from here; versions must match)
+* BioTekLiquidHandler.dll from [here](https://github.com/nolanlab/BioTekLiquidHandler/tree/master/BioTekLiquidHandler/bin/Release)
+* BioTekLiquidHandler.tlb  from [here](https://github.com/nolanlab/BioTekLiquidHandler/tree/master/BioTekLiquidHandler/bin/Release)
+* LHC_Installation_Folder.inf from your Liquid Handling Control installation directory
+* BTILHCRunner.dll from your Liquid Handling Control installation directory or from  from [here](https://github.com/nolanlab/BioTekLiquidHandler/tree/master/BioTekLiquidHandler/bin/Release). The DLL version and LHC version must match; the version in this repo is for LHC 2.16.
