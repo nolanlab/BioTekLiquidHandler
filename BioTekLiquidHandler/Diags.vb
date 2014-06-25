@@ -1,6 +1,6 @@
 ﻿Public Class Diags
 
-    Dim activeProfile As Profile
+    Private plugin As BioTekVWorksPluginDriver
 
     Private Sub Diags_Load(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles MyBase.Load
         'Load options into the instrument type combo.
@@ -27,15 +27,15 @@
     End Sub
 
     Private Sub cmboInstrumentType_SelectedIndexChanged(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmboInstrumentType.SelectedIndexChanged
-        If activeProfile IsNot Nothing Then
-            activeProfile.instrumentType = CType(cmboInstrumentType.SelectedValue, BTILHCRunner.ClassLHCRunner.enumProductType)
+        If plugin.activeProfile IsNot Nothing Then
+            plugin.activeProfile.instrumentType = CType(cmboInstrumentType.SelectedValue, BTILHCRunner.ClassLHCRunner.enumProductType)
             btnUpdateProfile.Enabled = True
         End If
     End Sub
 
     Private Sub cmboPort_SelectedIndexChanged(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmboPort.SelectedIndexChanged
-        If activeProfile IsNot Nothing Then
-            activeProfile.commPort = cmboPort.SelectedItem
+        If plugin.activeProfile IsNot Nothing Then
+            plugin.activeProfile.commPort = cmboPort.SelectedItem
             btnUpdateProfile.Enabled = True
         End If
     End Sub
@@ -43,34 +43,40 @@
     Private Sub btnNewProfile_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnNewProfile.Click
         Dim newProfileName = InputBox("Please enter name for new profile", "New Profile")
         If newProfileName <> "" Then
-            activeProfile = New Profile
-            activeProfile.name = newProfileName
-            activeProfile.ToRegistry()
-            cmboProfile.Items.Add(activeProfile)
+            plugin.activeProfile = New Profile
+            plugin.activeProfile.name = newProfileName
+            plugin.activeProfile.ToRegistry()
+            cmboProfile.Items.Add(plugin.activeProfile)
             cmboProfile.SelectedIndex = cmboProfile.Items.IndexOf(newProfileName)
         End If
     End Sub
 
     Private Sub btnDeleteProfile_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnDeleteProfile.Click
         If MsgBox("Are you sure?", vbYesNo) = vbYes Then
-            Profile.DeleteProfile(activeProfile.name)
+            Dim profileName = plugin.activeProfile.name
+            Profile.DeleteProfile(profileName)
+            cmboProfile.Items.Remove(profileName)
+            If cmboProfile.Items.Count > 0 Then
+                cmboProfile.SelectedIndex = 0
+                'Firing of cmboProfile.selectedIndexChange should take over from here
+            End If
         End If
     End Sub
 
     Private Sub btnUpdateProfile_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnUpdateProfile.Click
-        activeProfile.ToRegistry()
+        plugin.activeProfile.ToRegistry()
         btnUpdateProfile.Enabled = False
     End Sub
 
     Private Sub btnInitializeProfile_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnInitializeProfile.Click
-
+        plugin.Initialize("") 'TODO any string?
     End Sub
 
     Private Sub cmboProfile_SelectedIndexChanged(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmboProfile.SelectedIndexChanged
-        activeProfile = Profile.FromRegistry(cmboProfile.SelectedItem)
-        If activeProfile IsNot Nothing Then
-            cmboPort.SelectedIndex = cmboPort.Items.IndexOf(activeProfile.commPort)
-            cmboInstrumentType.SelectedIndex = cmboInstrumentType.Items.IndexOf(activeProfile.instrumentType)
+        plugin.activeProfile = Profile.FromRegistry(cmboProfile.SelectedItem)
+        If plugin.activeProfile IsNot Nothing Then
+            cmboPort.SelectedIndex = cmboPort.Items.IndexOf(plugin.activeProfile.commPort)
+            cmboInstrumentType.SelectedIndex = cmboInstrumentType.Items.IndexOf(plugin.activeProfile.instrumentType)
             cmboPort.Enabled = True
             cmboInstrumentType.Enabled = True
             btnUpdateProfile.Enabled = True
@@ -83,4 +89,10 @@
         End If
     End Sub
 
+    Public Sub New(ByVal plugin As BioTekVWorksPluginDriver)
+        ' This call is required by the designer.
+        InitializeComponent()
+
+        Me.plugin = plugin
+    End Sub
 End Class

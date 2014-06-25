@@ -1,17 +1,20 @@
 ﻿Imports BTILHCRunner
 Imports System.Windows.Forms
+Imports System.IO
 
 Public Class BioTekVWorksPluginDriver
     Inherits IWorksDriver.CControllerClientClass
     Implements IWorksDriver.IWorksDriver
     Implements IWorksDriver.IWorksDiags
 
-    Dim lhcRunner As BTILHCRunner.ClassLHCRunner = New BTILHCRunner.ClassLHCRunner
-    Dim controllerInstance As IWorksDriver.CWorksController
+    Private lhcRunner As BTILHCRunner.ClassLHCRunner = New BTILHCRunner.ClassLHCRunner
+    Private controllerInstance As IWorksDriver.CWorksController
 
-    Dim errorString As String
+    Private errorString As String = ""
 
-    Friend WithEvents frmDiags As Diags
+    Friend activeProfile As Profile
+
+    Private WithEvents frmDiags As Diags = New Diags(Me)
 
     ' This should be defined by BTILHCRunner but does not appear to be.
     Enum Runner_ReturnCode
@@ -39,14 +42,11 @@ Public Class BioTekVWorksPluginDriver
         eNotRequired = 10
     End Enum
 
-    'TODO base on a profile
-    Dim commPort As String = "COM22"
-    Dim productType As BTILHCRunner.ClassLHCRunner.enumProductType = BTILHCRunner.ClassLHCRunner.enumProductType.eMultiFloFX
-
     Public Sub Abort(ByVal ErrorContext As String) Implements IWorksDriver.IWorksDriver.Abort
-        'TODO how do we associate this with a particular device instance!?
-        lhcRunner.LHC_PauseProtocol()
-        lhcRunner.LHC_AbortProtocol()
+        If activeProfile IsNot Nothing And activeProfile.initialized Then
+            lhcRunner.LHC_PauseProtocol()
+            lhcRunner.LHC_AbortProtocol()
+        End If
     End Sub
 
     Public Sub Close() Implements IWorksDriver.IWorksDriver.Close
@@ -63,6 +63,11 @@ Public Class BioTekVWorksPluginDriver
         '	</Command>
         '</Velocity11>
 
+        If activeProfile Is Nothing Or activeProfile.initialized = False Then
+            errorString = "Device is not initialized."
+            Return IWorksDriver.ReturnCode.RETURN_FAIL
+        End If
+
         Dim programPath As String = ""
 
         Dim xcommand As XDocument = XDocument.Parse(CommandXML)
@@ -73,13 +78,17 @@ Public Class BioTekVWorksPluginDriver
         Next
 
         If programPath = "" Then
+            errorString = "Program path was not specified."
             Return IWorksDriver.ReturnCode.RETURN_FAIL
         End If
 
         'Verify file exists
         If System.IO.File.Exists(programPath) <> True Then
+            errorString = "Could not find program file: " & programPath
             Return IWorksDriver.ReturnCode.RETURN_FAIL
         End If
+
+        lhcRunner.LHC_LoadProtocolFromFile(programPath)
 
         lhcRunner.LHC_RunProtocol()
         While True
@@ -89,20 +98,22 @@ Public Class BioTekVWorksPluginDriver
                 Case RunStatus.eDone, RunStatus.eReady
                     Return IWorksDriver.ReturnCode.RETURN_SUCCESS
                 Case RunStatus.eError, RunStatus.eUninitialized
+                    errorString = lhcRunner.LHC_GetErrorString(lhcRunner.LHC_GetLastErrorCode())
+                    If errorString = "" Then
+                        errorString = "Unkown error occurred."
+                    End If
                     Return IWorksDriver.ReturnCode.RETURN_FAIL
                 Case Else
-                    MsgBox("Unhandled status: " + lhcRunner.LHC_GetProtocolStatus())
+                    errorString = "Unhandled status: " + lhcRunner.LHC_GetProtocolStatus()
+                    Return IWorksDriver.ReturnCode.RETURN_FAIL
             End Select
         End While
-
-        lhcRunner.LHC_LoadProtocolFromFile(programPath)
 
         Return IWorksDriver.ReturnCode.RETURN_SUCCESS
     End Function
 
     Public Function Compile(ByVal iCompileType As IWorksDriver.CompileType, ByVal MetaDataXML As String) As String Implements IWorksDriver.IWorksDriver.Compile
         'No errors or warnings to report, basically ever.
-        'Maybe if plate class doesn't match manifold type? Those are hard to compare.
         Return ""
     End Function
 
@@ -117,7 +128,22 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Function GetDescription(ByVal CommandXML As String, ByVal Verbose As Boolean) As String Implements IWorksDriver.IWorksDriver.GetDescription
-        Return ""
+        'Verbose indicates if the description goes in the log or under a task icon. Not used here.
+        Dim programName As String = ""
+
+        Dim xcommand As XDocument = XDocument.Parse(CommandXML)
+        For Each parameter As XElement In xcommand...<Parameter>
+            If parameter.@Name = "Program name" Then
+                Dim programPath As String = parameter.@Value
+                programName = Path.GetFileName(programPath)
+            End If
+        Next
+
+        If programName = "" Then
+            programName = "LHC protocol"
+        End If
+
+        Return "Run " & programName
     End Function
 
     Public Function GetErrorInfo() As String Implements IWorksDriver.IWorksDriver.GetErrorInfo
@@ -154,7 +180,7 @@ Public Class BioTekVWorksPluginDriver
                         <Version Author='zbjornson' Date='June 15, 2014' Name='BioTek Liquid Handler' Version='1.0.0'/>
                     </Versions>
                     <Commands>
-                        <Command Compiler='17' Description='Runs a program' Editor='16' Name='Run LHC Program'>
+                        <Command Compiler='17' Description='Run an LHC protocol' Editor='10' Name='Run LHC protocol'>
                             <Parameters>
                                 <Parameter Name='Program name' Description='Name of LHC program' Style='0' Type='9'>
                                 </Parameter>
@@ -168,21 +194,33 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Function Ignore(ByVal ErrorContext As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Ignore
+        'Any way to ignore? Don't think so.
         Return IWorksDriver.ReturnCode.RETURN_SUCCESS
     End Function
 
     Public Function Initialize(ByVal CommandXML As String) As IWorksDriver.ReturnCode Implements IWorksDriver.IWorksDriver.Initialize
-        MsgBox(CommandXML)
-        Debug.Print(CommandXML)
+        Dim xcommand As XDocument = XDocument.Parse(CommandXML)
+        For Each parameter As XElement In xcommand...<Parameter>
+            If parameter.@Name = "Profile" Then
+                Dim profileName = parameter.@Value
+                activeProfile = Profile.FromRegistry(profileName)
+            End If
+        Next
+
+        If activeProfile Is Nothing Then
+            errorString = "Error loading profile."
+            Return IWorksDriver.ReturnCode.RETURN_FAIL
+        End If
+
         Dim returnValue As Runner_ReturnCode
 
-        returnValue = lhcRunner.LHC_SetProductType(productType)
+        returnValue = lhcRunner.LHC_SetProductType(activeProfile.instrumentType)
         If (returnValue <> Runner_ReturnCode.eOK) Then
             errorString = lhcRunner.LHC_GetErrorString(returnValue)
             Return IWorksDriver.ReturnCode.RETURN_FAIL
         End If
 
-        returnValue = lhcRunner.LHC_SetCommunications(commPort)
+        returnValue = lhcRunner.LHC_SetCommunications(activeProfile.commPort)
         If (returnValue <> Runner_ReturnCode.eOK) Then
             errorString = lhcRunner.LHC_GetErrorString(returnValue)
             Return IWorksDriver.ReturnCode.RETURN_FAIL
@@ -193,6 +231,8 @@ Public Class BioTekVWorksPluginDriver
             errorString = lhcRunner.LHC_GetErrorString(returnValue)
             Return IWorksDriver.ReturnCode.RETURN_FAIL
         End If
+
+        activeProfile.initialized = True
 
         Return IWorksDriver.ReturnCode.RETURN_SUCCESS
     End Function
@@ -226,6 +266,7 @@ Public Class BioTekVWorksPluginDriver
         Return IWorksDriver.ReturnCode.RETURN_SUCCESS
     End Function
 
+    'Formsy stuff. Would be nicer in Diags.vb but not sure how to make VWorks find the pointer to the class implementing IWorksDriver.IWorksDiags.
     Private Sub DiagsForm_FormClosed(ByVal sender As Object, ByVal e As FormClosedEventArgs) Handles frmDiags.FormClosed
         controllerInstance.OnCloseDiagsDialog(Me)
     End Sub
@@ -240,12 +281,11 @@ Public Class BioTekVWorksPluginDriver
     End Function
 
     Public Sub ShowDiagsDialog(ByVal iSecurity As IWorksDriver.SecurityLevel) Implements IWorksDriver.IWorksDriver.ShowDiagsDialog
-        frmDiags = New Diags
+        ' This is obsolete, says the docs, except it's still used.
         frmDiags.Show()
     End Sub
 
     Public Sub ShowDiagsDialog(ByVal iSecurity As IWorksDriver.SecurityLevel, ByVal bModal As Boolean) Implements IWorksDriver.IWorksDiags.ShowDiagsDialog
-        frmDiags = New Diags
         frmDiags.Show()
     End Sub
 

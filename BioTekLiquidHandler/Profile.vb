@@ -1,7 +1,8 @@
 ﻿Public Class Profile
-    Public name As String = Nothing
-    Public instrumentType As BTILHCRunner.ClassLHCRunner.enumProductType = BTILHCRunner.ClassLHCRunner.enumProductType.eUndefined
-    Public commPort As String = ""
+    Public Property name As String = Nothing
+    Public Property instrumentType As BTILHCRunner.ClassLHCRunner.enumProductType = BTILHCRunner.ClassLHCRunner.enumProductType.eUndefined
+    Public Property commPort As String = ""
+    Public Property initialized As Boolean = False
 
     Private Const REG_PATH As String = "SOFTWARE\Velocity11\BioTek Liquid Handler\Profiles\"
 
@@ -41,7 +42,6 @@
         End If
 
         Return newProfile
-
     End Function
 
     Public Shared Function DeleteProfile(ByVal name As String) As Integer
@@ -61,7 +61,6 @@
         sProfiles = My.Computer.Registry.LocalMachine.OpenSubKey(REG_PATH, False).GetSubKeyNames()
 
         Return sProfiles
-
     End Function
 
 End Class
