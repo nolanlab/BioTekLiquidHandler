@@ -7,9 +7,11 @@ A very simple plugin (consider using as a template project if you're building a 
 * No XML RPC servers to run
 * No association of an LHC protocol folder with device profile (easier for our protocol file organization method)
 
-==Installation==
+Installation
+------------
 Copy the following files to the VWorks Plugin directory:
-	BioTekLiquidHandler.dll
-	BioTekLiquidHandler.tlb
-	LHC_Installation_Folder.inf (from the Liquid Handling Control installation directory)
-	BTILHCRunner.dll (from the Liquid Handling Control installation directory or from here; versions must match)
+
+* BioTekLiquidHandler.dll
+* BioTekLiquidHandler.tlb
+* LHC_Installation_Folder.inf (from the Liquid Handling Control installation directory)
+* BTILHCRunner.dll (from the Liquid Handling Control installation directory or from here; versions must match)
