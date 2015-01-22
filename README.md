@@ -3,9 +3,11 @@ BioTekLiquidHandler
 
 VWorks plugin for controlling BioTek liquid handlers (e.g. ELx405, MultiFlo, MultiFloFX).
 
-A very simple plugin (consider using as a template project if you're building a new VWorks plugin). The differences compared to Agilent's plugin are only minor:
+A very simple plugin. The differences compared to Agilent's plugin are only minor:
 * No XML RPC servers to run
 * No association of an LHC protocol folder with device profile (easier for our protocol file organization method)
+
+If you're looking for a template to start a new plugin from, please try [our BioShake plugin](https://github.com/nolanlab/VWorks-Bioshake) instead. It is more thoroughly debugged, simpler and designed to be easy to template from.
 
 Installation
 ------------
